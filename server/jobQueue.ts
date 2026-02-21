@@ -26,6 +26,7 @@ export interface Job {
   createdAt: number;
   completedAt?: number;
   expiresAt?: number;
+  visualPerturb?: boolean;
 }
 
 // In-memory job store (session-scoped, no DB persistence)
@@ -33,7 +34,7 @@ const jobs = new Map<string, Job>();
 let isWorkerRunning = false;
 const jobQueue: string[] = [];
 
-export function createJob(id: string, originalName: string, inputPath: string): Job {
+export function createJob(id: string, originalName: string, inputPath: string, visualPerturb = false): Job {
   const job: Job = {
     id,
     originalName,
@@ -43,6 +44,7 @@ export function createJob(id: string, originalName: string, inputPath: string): 
     currentStep: "Na fila...",
     steps: [],
     createdAt: Date.now(),
+    visualPerturb,
   };
   jobs.set(id, job);
   jobQueue.push(id);
@@ -93,58 +95,118 @@ async function runWorker() {
   isWorkerRunning = false;
 }
 
+function runPythonScript(
+  scriptPath: string,
+  args: string[],
+  cleanEnv: NodeJS.ProcessEnv,
+  onProgress: (parsed: { step?: string; percent?: number; message?: string; error?: string }) => void
+): Promise<number> {
+  return new Promise((resolve) => {
+    const python = spawn("python3.11", [scriptPath, ...args], { env: cleanEnv });
+    python.stdout.on("data", (data: Buffer) => {
+      const lines = data.toString().split("\n").filter(Boolean);
+      for (const line of lines) {
+        try { onProgress(JSON.parse(line)); } catch {}
+      }
+    });
+    python.stderr.on("data", (data: Buffer) => {
+      console.error("[Worker] Python stderr:", data.toString());
+    });
+    python.on("close", resolve);
+    python.on("error", () => resolve(1));
+  });
+}
+
 async function processJob(job: Job): Promise<void> {
   job.status = "processing";
   job.currentStep = "Iniciando processamento...";
 
   const outputPath = job.inputPath.replace(/\.mp4$/i, "_processed.mp4");
-  job.outputPath = outputPath;
+  const visualOutputPath = job.inputPath.replace(/\.mp4$/i, "_final.mp4");
+  job.outputPath = job.visualPerturb ? visualOutputPath : outputPath;
+
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.PYTHONHOME;
+  delete cleanEnv.PYTHONPATH;
+
+  const addStep = (parsed: { step?: string; percent?: number; message?: string; error?: string }) => {
+    if (parsed.error) {
+      job.status = "error";
+      job.error = parsed.error;
+      job.currentStep = "Erro no processamento";
+    } else if (parsed.step) {
+      job.progress = parsed.percent ?? job.progress;
+      job.currentStep = parsed.message ?? job.currentStep;
+      job.steps.push({
+        step: parsed.step,
+        percent: parsed.percent ?? 0,
+        message: parsed.message ?? "",
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  // ── Etapa 1: Processamento de áudio (Out-of-Phase Stereo) ──────────────────
+  const audioScript = path.join(process.cwd(), "server", "process_audio.py");
+  const audioCode = await runPythonScript(audioScript, [job.inputPath, outputPath], cleanEnv, addStep);
+
+  if (audioCode !== 0 || !fs.existsSync(outputPath)) {
+    if ((job.status as string) !== "error") {
+      job.status = "error";
+      job.error = `Processamento de áudio falhou (código ${audioCode})`;
+      job.currentStep = "Erro no processamento de áudio";
+    }
+    try { if (fs.existsSync(job.inputPath)) fs.unlinkSync(job.inputPath); } catch {}
+    return;
+  }
+
+  // ── Etapa 2 (opcional): Perturbação visual adversarial ────────────────────
+  if (job.visualPerturb) {
+    job.currentStep = "Aplicando camada visual adversarial...";
+    const visualScript = path.join(process.cwd(), "server", "process_video_adversarial.py");
+    const visualCode = await runPythonScript(
+      visualScript,
+      [outputPath, visualOutputPath, "3.0"],
+      cleanEnv,
+      (parsed) => {
+        if (parsed.step) {
+          // Remapear progresso da etapa visual para 50-95%
+          const remapped = 50 + Math.round((parsed.percent ?? 0) * 0.45);
+          addStep({ ...parsed, percent: remapped });
+        } else {
+          addStep(parsed);
+        }
+      }
+    );
+
+    // Limpar arquivo intermediário de áudio
+    try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
+
+    if (visualCode !== 0 || !fs.existsSync(visualOutputPath)) {
+      if ((job.status as string) !== "error") {
+        job.status = "error";
+        job.error = `Perturbação visual falhou (código ${visualCode})`;
+        job.currentStep = "Erro na perturbação visual";
+      }
+      try { if (fs.existsSync(job.inputPath)) fs.unlinkSync(job.inputPath); } catch {}
+      return;
+    }
+  }
+
+  const finalOutputPath = job.visualPerturb ? visualOutputPath : outputPath;
 
   return new Promise((resolve) => {
-    const scriptPath = path.join(process.cwd(), "server", "process_audio.py");
-    // Remove PYTHONHOME/PYTHONPATH from env to avoid Python 3.13 conflict
-    const cleanEnv = { ...process.env };
-    delete cleanEnv.PYTHONHOME;
-    delete cleanEnv.PYTHONPATH;
-    const python = spawn("python3.11", [scriptPath, job.inputPath, outputPath], { env: cleanEnv });
-
-    python.stdout.on("data", (data: Buffer) => {
-      const lines = data.toString().split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed.error) {
-            job.status = "error";
-            job.error = parsed.error;
-            job.currentStep = "Erro no processamento";
-          } else if (parsed.step) {
-            job.progress = parsed.percent;
-            job.currentStep = parsed.message;
-            job.steps.push({
-              step: parsed.step,
-              percent: parsed.percent,
-              message: parsed.message,
-              timestamp: Date.now(),
-            });
-          }
-        } catch {}
-      }
-    });
-
-    python.stderr.on("data", (data: Buffer) => {
-      console.error("[Worker] Python stderr:", data.toString());
-    });
-
-    python.on("close", async (code) => {
-      if (code === 0 && fs.existsSync(outputPath)) {
+    const doUpload = async () => {
+      if (fs.existsSync(finalOutputPath)) {
         try {
           // Upload to S3
           job.currentStep = "Enviando para armazenamento...";
           job.progress = 95;
 
-          const fileBuffer = fs.readFileSync(outputPath);
+          const fileBuffer = fs.readFileSync(finalOutputPath);
           const baseName = job.originalName.replace(/\.mp4$/i, "");
-          const s3Key = `processed/${job.id}/${baseName}_processed.mp4`;
+          const suffix = job.visualPerturb ? "_processed_visual" : "_processed";
+          const s3Key = `processed/${job.id}/${baseName}${suffix}.mp4`;
 
           const { url } = await storagePut(s3Key, fileBuffer, "video/mp4");
 
@@ -156,15 +218,15 @@ async function processJob(job: Job): Promise<void> {
           job.expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
 
           // Clean up local output file
-          try { fs.unlinkSync(outputPath); } catch {}
+          try { fs.unlinkSync(finalOutputPath); } catch {}
         } catch (err) {
           job.status = "error";
           job.error = `Erro ao enviar para S3: ${err}`;
           job.currentStep = "Erro no upload";
         }
-      } else if (job.status !== "error") {
+      } else if ((job.status as string) !== "error") {
         job.status = "error";
-        job.error = `Processo encerrado com código ${code}`;
+        job.error = "Arquivo de saída não encontrado";
         job.currentStep = "Erro no processamento";
       }
 
@@ -174,13 +236,7 @@ async function processJob(job: Job): Promise<void> {
       } catch {}
 
       resolve();
-    });
-
-    python.on("error", (err) => {
-      job.status = "error";
-      job.error = `Falha ao iniciar processamento: ${err.message}`;
-      job.currentStep = "Erro crítico";
-      resolve();
-    });
+    };
+    doUpload();
   });
 }

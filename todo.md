@@ -24,3 +24,11 @@
 - [x] Analisar diferença exata entre áudio original e processado do amigo (comparação de waveform/espectro)
 - [x] Implementar codificação Out-of-Phase Stereo perfeita (L=mono, R=-mono)
 - [x] Testar: áudio 100% inteligível para humanos + cancelamento 95-100% para IA
+- [x] Analisar frames do vídeo do amigo para identificar técnica visual usada
+- [x] Implementar perturbação adversarial de vídeo (imperceptível para humanos, confunde IA de visão)
+- [x] Integrar processamento de vídeo+áudio no pipeline único
+- [x] Testar resultado com ferramenta de análise de vídeo por IA
+- [x] Implementar perturbação adversarial visual multi-camada (noise+hue shift via ffmpeg nativo)
+- [x] Integrar processamento visual ao pipeline (áudio + vídeo juntos)
+- [x] Atualizar UI com opção de camada visual ativada/desativada
+- [x] Testar resultado visual com ferramenta de análise por IA

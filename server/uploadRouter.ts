@@ -41,13 +41,15 @@ router.post("/upload", upload.single("video"), (req, res) => {
   const jobId = path.basename(req.file.filename, ".mp4");
   const originalName = req.file.originalname;
   const inputPath = req.file.path;
+  const visualPerturb = req.body?.visualPerturb === "true" || req.body?.visualPerturb === true;
 
-  const job = createJob(jobId, originalName, inputPath);
+  const job = createJob(jobId, originalName, inputPath, visualPerturb);
 
   res.json({
     jobId: job.id,
     originalName: job.originalName,
     status: job.status,
+    visualPerturb: job.visualPerturb,
     message: "Upload realizado com sucesso. Processamento iniciado.",
   });
 });
