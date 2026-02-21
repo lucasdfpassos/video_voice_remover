@@ -18,3 +18,6 @@
 - [x] Testes vitest para rotas principais
 - [x] Checkpoint final
 - [x] Correção: PYTHONHOME conflitando Python 3.13 com python3.11 no spawn do worker
+- [x] Melhorar algoritmo: instalar Demucs (Meta AI) para separação de fontes por IA
+- [x] Reescrever process_audio.py usando Demucs htdemucs para separar voz de fundo
+- [x] Testar qualidade do áudio resultante com vídeo real
