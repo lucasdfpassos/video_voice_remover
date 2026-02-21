@@ -21,3 +21,6 @@
 - [x] Melhorar algoritmo: instalar Demucs (Meta AI) para separação de fontes por IA
 - [x] Reescrever process_audio.py usando Demucs htdemucs para separar voz de fundo
 - [x] Testar qualidade do áudio resultante com vídeo real
+- [x] Analisar diferença exata entre áudio original e processado do amigo (comparação de waveform/espectro)
+- [x] Implementar codificação Out-of-Phase Stereo perfeita (L=mono, R=-mono)
+- [x] Testar: áudio 100% inteligível para humanos + cancelamento 95-100% para IA
