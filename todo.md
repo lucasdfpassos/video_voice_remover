@@ -32,3 +32,4 @@
 - [x] Integrar processamento visual ao pipeline (áudio + vídeo juntos)
 - [x] Atualizar UI com opção de camada visual ativada/desativada
 - [x] Testar resultado visual com ferramenta de análise por IA
+- [x] Aumentar limite de upload de 150MB para 200MB (backend + frontend)

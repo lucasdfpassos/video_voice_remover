@@ -44,9 +44,9 @@ function UploadZone({ onUpload }: { onUpload: (file: File) => void }) {
         toast.error("Apenas arquivos MP4 são aceitos.");
         return;
       }
-      const maxSize = 150 * 1024 * 1024;
+      const maxSize = 200 * 1024 * 1024;
       if (file.size > maxSize) {
-        toast.error(`Arquivo muito grande. Máximo: 150MB. Seu arquivo: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+        toast.error(`Arquivo muito grande. Máximo: 200MB. Seu arquivo: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
         return;
       }
       setIsUploading(true);
@@ -129,14 +129,14 @@ function UploadZone({ onUpload }: { onUpload: (file: File) => void }) {
             {isUploading ? "Enviando vídeo..." : isDragging ? "Solte o arquivo aqui" : "Arraste seu vídeo MP4"}
           </p>
           <p className="text-sm" style={{ color: "oklch(0.55 0.01 260)" }}>
-            {isUploading ? "Aguarde enquanto o arquivo é carregado" : "ou clique para selecionar — até 150MB"}
+            {isUploading ? "Aguarde enquanto o arquivo é carregado" : "ou clique para selecionar — até 200MB"}
           </p>
         </div>
 
         {/* Badges */}
         {!isUploading && (
           <div className="flex gap-2 flex-wrap justify-center">
-            {["MP4", "Até 150MB", "Processamento IA"].map((label) => (
+            {["MP4", "Até 200MB", "Processamento IA"].map((label) => (
               <span
                 key={label}
                 className="px-3 py-1 rounded-full text-xs font-medium"
@@ -519,7 +519,7 @@ export default function Home() {
           {/* steps */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             {[
-              { step: "01", title: "Upload", desc: "Envie seu vídeo MP4 (até 150MB)" },
+              { step: "01", title: "Upload", desc: "Envie seu vídeo MP4 (até 200MB)" },
               { step: "02", title: "Análise", desc: "IA analisa o espectro de frequências" },
               { step: "03", title: "Remoção", desc: "Voz (0–4kHz) é removida com precisão" },
               { step: "04", title: "Download", desc: "Vídeo processado disponível por 24h" },
