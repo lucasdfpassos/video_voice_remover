@@ -102,7 +102,11 @@ async function processJob(job: Job): Promise<void> {
 
   return new Promise((resolve) => {
     const scriptPath = path.join(process.cwd(), "server", "process_audio.py");
-    const python = spawn("python3", [scriptPath, job.inputPath, outputPath]);
+    // Remove PYTHONHOME/PYTHONPATH from env to avoid Python 3.13 conflict
+    const cleanEnv = { ...process.env };
+    delete cleanEnv.PYTHONHOME;
+    delete cleanEnv.PYTHONPATH;
+    const python = spawn("python3.11", [scriptPath, job.inputPath, outputPath], { env: cleanEnv });
 
     python.stdout.on("data", (data: Buffer) => {
       const lines = data.toString().split("\n").filter(Boolean);

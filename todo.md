@@ -17,3 +17,4 @@
 - [x] Frontend: feedback visual de cada etapa (fila → processando → concluído → erro)
 - [x] Testes vitest para rotas principais
 - [x] Checkpoint final
+- [x] Correção: PYTHONHOME conflitando Python 3.13 com python3.11 no spawn do worker
